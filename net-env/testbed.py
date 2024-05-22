@@ -1,26 +1,17 @@
 import argparse
+import json
+import logging
+
 from functools import partial
+import socket
 
 from mininet.cli import CLI
 from mininet.link import TCLink
 from mininet.net import Mininet
-from mininet.node import RemoteController, OVSSwitch
+from mininet.node import RemoteController, OVSSwitch, Controller
 from mininet.topo import Topo
 
-
-def load_topo(topo_name):
-    topo_file = open("../topology/%s/%s-Topo.txt" % (topo_name, topo_name))
-    topo_info = topo_file.readlines()
-    node_num, link_num = map(int, topo_info[0].split())
-    link_set = []
-    bandwidth = []
-    loss = []
-    for i in range(link_num):
-        node1, node2, link_wight, link_capacity, link_loss = map(int, topo_info[i + 1].split())
-        link_set.append([node1 - 1, node2 - 1])
-        bandwidth.append(float(link_capacity) / 1000)
-        loss.append(link_loss)
-    return node_num, link_set, bandwidth, loss
+from utils import load_topo
 
 
 class CustomTopo(Topo):
@@ -55,21 +46,51 @@ class CustomTopo(Topo):
             self.addLink(self._switches[i], self._hosts[i], bw=1000, delay='0ms')
 
 
+# net: Topo
+def gen_request(net, data):
+    host_src = net.hosts[data["src"]]
+    host_dst = net.hosts[data["dst"]]
+
+
 if __name__ == '__main__':
+
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(filename='testbed_run.log', level=logging.INFO)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--topo", default='Abilene', type=str,
                         help="available topology: test | Abilene| GEANT")
     parser.add_argument("--testbed-ip", default="127.0.0.1", type=str, help="ip address of testbed")
     parser.add_argument("--testbed-port", default=5000, type=int, help="port  of testbed")
+    # mininet default ip: 127.0.0.1 default port: 6653 这里可以不用指定，mininet的默认设置
+    # ryu控制器参数
+    # --ofp-tcp-listen-port 6653 tcp监听端口
+    # --ofp-ssl-listen-port 6653 ssl监听端口
     parser.add_argument("--controller-ip", default="127.0.0.1", type=str, help="controller ip address")
-    parser.add_argument("--controller-port", default=5001, type=int, help="controller port")
+    parser.add_argument("--controller-port", default=6653, type=int, help="controller port")
 
     args = parser.parse_args()
     topo_name = args.topo
+
     node_num, link_set, bandwidth, loss = load_topo(topo_name)
     net_topo = CustomTopo(node_num, link_set, bandwidth, loss)
     net = Mininet(topo=net_topo, switch=partial(OVSSwitch, protocols='OpenFlow13'),
                   link=TCLink, controller=None)
-    net.addController('controller', controller=RemoteController, ip=args.controller_ip, port=args.controller_port)
+    net.addController('ryu-controller', controller=RemoteController, ip=args.controller_ip, port=args.controller_port)
     net.start()
     CLI(net)
+
+    # bind socket
+    # 接收DRL根据流量矩阵产生的流量
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((args.testbed_ip, args.testbed_port))
+    s.listen(1)
+
+    conn, addr = s.accept()
+    logger.info('Accepted connection from %s ', addr)
+
+    while True:
+        msg = conn.recv(1024)
+        logger.info(msg)
+
+
