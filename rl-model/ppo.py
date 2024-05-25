@@ -33,6 +33,7 @@ class PPO:
 
     def update(self, rollouts):
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
+        # 标准化advantages的值，均值为0，标准差为1，
         advantages = (advantages - advantages.mean()) / (
             advantages.std() + 1e-5)
 
