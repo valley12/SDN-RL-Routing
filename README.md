@@ -1,6 +1,12 @@
 # SDN-RL-Routing
-SDN routing algorithm based on reinforcement leaning.
-
+SDN refers to  Software Defined Network, which separates control plane
+and forwarding plane.
+This project aims at optimizes SDN routing algorithm based on reinforcement leaning.
+Here we focus on normal metrics in network:
++ delay
++ loss
++ throughput
+Also，we 
 # Install Mininet
 refer to http://mininet.org/download/
 ```shell
@@ -19,6 +25,9 @@ Common OpenFlow Protocol Version: v1.0, v1.1, v1.2, v1.3
 
 
 # Initialize Mininet
+```shell
+python3 testbed.py
+```
 
 # Initialize Controller
 
